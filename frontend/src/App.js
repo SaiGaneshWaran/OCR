@@ -45,17 +45,29 @@ function App() {
 
   return (
     <div className="container">
-      <header>
-        <h1>Hey™ OCR Payment Verification</h1>
-        <p>Upload a receipt image to automatically detect the payment amount.</p>
-      </header>
-      <form onSubmit={handleSubmit} className="upload-form">
-        <input type="file" onChange={handleFileChange} accept="image/jpeg, image/png" />
-        <button type="submit" disabled={loading || !file}>
-          {loading ? <div className="loader"></div> : 'Verify Payment'}
-        </button>
-      </form>
-      {error && <p className="error-message">{error}</p>}
+      <section className="intro-section">
+        <h1>Welcome to Hey™ Payment Verifier</h1>
+        <p>Use AI to extract payment details instantly from your receipts using OCR technology.</p>
+        <ul className="features">
+          <li>📸 Upload any receipt image</li>
+          <li>💰 Detect payment amount instantly</li>
+          <li>🔍 View extracted raw text</li>
+          <li>🚀 Fast and secure backend processing</li>
+        </ul>
+        <div className="hero-highlight">Empowering smart verifications in 5 seconds.</div>
+      </section>
+
+      <section className="upload-section">
+        <h2>🧾 Upload Your Receipt Image</h2>
+        <form onSubmit={handleSubmit} className="upload-form">
+          <input type="file" onChange={handleFileChange} accept="image/jpeg, image/png" />
+          <button type="submit" disabled={loading || !file}>
+            {loading ? <div className="loader"></div> : 'Verify Payment'}
+          </button>
+        </form>
+        {error && <p className="error-message">{error}</p>}
+      </section>
+
       {result && (
         <div className="result-card">
           {result.success ? (
