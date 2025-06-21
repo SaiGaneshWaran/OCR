@@ -2,58 +2,58 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const Tesseract = require('tesseract.js');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// 1. Middleware
-// Enable CORS for all routes to allow requests from our React frontend
+// Middleware
 app.use(cors());
 
-// Configure multer for file uploads. We'll use memoryStorage to handle files as buffers.
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+// Rate Limiter Configuration
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+});
 
-// 2. The API Route for OCR
-// This endpoint will handle a POST request with a single file upload named 'receipt'
-app.post('/api/upload', upload.single('receipt'), async (req, res) => {
+// Multer Configuration with File Validation
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only JPEG and PNG are allowed.'), false);
+  }
+};
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB file size limit
+  fileFilter: fileFilter,
+});
+
+// API Route for OCR
+app.post('/api/upload', limiter, upload.single('receipt'), async (req, res) => {
   console.log('Received file upload request...');
-
-  // Basic check to ensure a file was uploaded
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file uploaded.' });
   }
 
   try {
-    // Tesseract.js recognizes text from the image buffer
-    const { data: { text } } = await Tesseract.recognize(
-      req.file.buffer,
-      'eng', // Language
-      { logger: m => console.log(m) } // Optional logger to see progress in the console
-    );
-
+    const { data: { text } } = await Tesseract.recognize(req.file.buffer, 'eng', { logger: m => console.log(m) });
     console.log('OCR Result:\n', text);
 
-    // 3. Regex to find a monetary amount (e.g., Rs. 1,500.00, Amount 1500, 1500.00)
-    // This is the core logic. It's flexible to catch different formats.
-    const amountRegex = /(?:total|amount|rs\.?)\s*([\d,]+\.?\d{2}?)/i;
-    const match = text.match(amountRegex);
+// THE FIX IS HERE: This new regex accounts for optional currency symbols
+    const amountRegex = /(?:total|amount)\s*:?\s*(?:rs\.?|[$€£])?\s*([\d,]+\.?\d*)/i;    const match = text.match(amountRegex);
 
     if (match && match[1]) {
-      // The amount is in the first capturing group (match[1])
-      const detectedAmount = match[1].replace(/,/g, ''); // Remove commas
+      const detectedAmount = match[1].replace(/,/g, '');
       console.log(`Amount detected: ${detectedAmount}`);
-      return res.json({
-        success: true,
-        amount: detectedAmount,
-        fullText: text, // Send back the full text for debugging/display
-      });
+      return res.json({ success: true, amount: detectedAmount, fullText: text });
     } else {
       console.log('Could not find a valid amount in the OCR text.');
-      return res.json({
-        success: false,
-        message: 'Could not detect a valid amount from the receipt.',
-        fullText: text,
-      });
+      return res.json({ success: false, message: 'Could not detect a valid amount from the receipt.', fullText: text });
     }
   } catch (error) {
     console.error('Error during OCR processing:', error);
@@ -61,7 +61,7 @@ app.post('/api/upload', upload.single('receipt'), async (req, res) => {
   }
 });
 
-// 4. Start the server
+// Start the server
 const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
